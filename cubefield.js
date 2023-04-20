@@ -5,7 +5,18 @@
 // Global WebGL context variable
 let gl;
 
+// Allow use of glMatrix values directly instead of needing the glMatrix prefix
+const vec3 = glMatrix.vec3;
+const vec4 = glMatrix.vec4;
+const mat4 = glMatrix.mat4;
+const quat = glMatrix.quat;
+
+
+// stores all the objects we have
 let objs = [];
+
+// allocate matrices globally
+let projectionMatrix = mat4.create();
 
 // Once the document is fully loaded run this init function.
 window.addEventListener('load', function init() {
@@ -47,8 +58,8 @@ function initProgram() {
         `#version 300 es
         precision mediump float;
 
-        // uniform mat4 uModelViewMatrix;
-        // uniform mat4 uProjectionMatrix;
+        uniform mat4 uModelViewMatrix;
+        uniform mat4 uProjectionMatrix;
 
         in vec4 aPosition;
         in vec3 aNormal;
@@ -63,16 +74,13 @@ function initProgram() {
         
         void main() {
 
-            // vec4 P = uModelViewMatrix * aPosition
-            vec4 P = aPosition;
+            vec4 P = uModelViewMatrix * aPosition;
 
-            // vNormalVector = mat3(uModelViewMatrix) * aNormal;
-            vNormalVector = aNormal;
+            vNormalVector = mat3(uModelViewMatrix) * aNormal;
             vLightVector = lightPosition.xyz;
             vEyeVector = -P.xyz;
 
-            // gl_Position = uProjectionMatrix * P;
-            gl_Position = P;
+            gl_Position = uProjectionMatrix * P;
             vColor = aColor;
         }`
     );
@@ -131,6 +139,8 @@ function initProgram() {
     program.aNormal = gl.getAttribLocation(program, 'aNormal');
 
     // Get the uniform indices
+    program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
+    program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
     
     return program;
 }
@@ -164,8 +174,7 @@ function initBuffers() {
         [gl.program.aPosition, tetraCoords, 3], 
         [gl.program.aColor, tetraColors, 3],
         [gl.program.aNormal, tetraNormals, 3]
-    ], tetraIndices), gl.TRIANGLES, 12]);
-
+    ], tetraIndices), gl.TRIANGLES, 12, setTetraMvMatrix()]);
 
 }
 
@@ -194,6 +203,8 @@ function render() {
 
     for (let [vao, type, count, mv] of objs) {
         gl.bindVertexArray(vao);
+        console.log(mv);
+        gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
     }
@@ -214,10 +225,36 @@ function onWindowResize() {
 }
 
 function updateProjectionMatrix() {
+    // Create the perspective projection matrix
+    let [w, h] = [gl.canvas.width, gl.canvas.height];
+    let fovy = Math.PI / 4;
+    let aspect = w / h;
+    let near = 0.001;
+    let far = 1000;
+
+    // Update projection matrix uniform
+    mat4.perspective(projectionMatrix, fovy, aspect, near, far);
+    mat4.scale(projectionMatrix, projectionMatrix, [1, 1, -1]);
+    gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, projectionMatrix);
+    console.log(projectionMatrix);
+    //gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, mat4.create());
+}
+
+// This will do the work of updating stuff according to input
+function onKeyboardInput() {
 
 }
 
-// This will do the work of updating matrices according to input
-function onKeyboardInput() {
+function setTetraMvMatrix() {
+
+    let mv = mat4.fromTranslation(mat4.create(), [0, 0, 1]);
+
+    let size = 0.1
+
+    mat4.scale(mv, mv, [0.1, 0.1, 0.1]);
+
+    
+    return mv;
+    
 
 }
