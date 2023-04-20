@@ -42,6 +42,10 @@ window.addEventListener('load', function init() {
     onWindowResize();
 
     // TODO: Set initial values of uniforms
+    let eye = vec3.fromValues(0, 1, -1);
+    let horizon = vec3.fromValues(0, 0, 1);
+    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
+    gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
     //Render initial scene
     render();
@@ -58,6 +62,7 @@ function initProgram() {
         `#version 300 es
         precision mediump float;
 
+        uniform mat4 uViewMatrix;
         uniform mat4 uModelViewMatrix;
         uniform mat4 uProjectionMatrix;
 
@@ -65,7 +70,7 @@ function initProgram() {
         in vec3 aNormal;
         in vec3 aColor;
 
-        vec4 lightPosition = vec4(0.0, 0.0, -1.0, 0.0);
+        vec4 lightPosition = vec4(0.0, 10.0, 0.0, 0.0);
 
         out vec3 vNormalVector;
         out vec3 vLightVector;
@@ -74,10 +79,14 @@ function initProgram() {
         
         void main() {
 
-            vec4 P = uModelViewMatrix * aPosition;
+            mat4 mv = uViewMatrix * uModelViewMatrix;
+
+            vec4 light = mv * lightPosition;
+
+            vec4 P = mv * aPosition;
 
             vNormalVector = mat3(uModelViewMatrix) * aNormal;
-            vLightVector = lightPosition.xyz;
+            vLightVector = light.xyz;
             vEyeVector = -P.xyz;
 
             gl_Position = uProjectionMatrix * P;
@@ -90,9 +99,9 @@ function initProgram() {
 
         // Material properties
         const vec3 lightColor = vec3(1.0, 1.0, 1.0);
-        const float materialAmbient = 0.2;
-        const float materialDiffuse = 0.4;
-        const float materialSpecular = 0.6;
+        const float materialAmbient = 0.5;
+        const float materialDiffuse = 0.6;
+        const float materialSpecular = 0.2;
         const float materialShininess = 10.0;
 
         // Fragment base color
@@ -141,40 +150,102 @@ function initProgram() {
     // Get the uniform indices
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
     program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
+    program.uViewMatrix = gl.getUniformLocation(program, 'uViewMatrix');
     
     return program;
 }
 
+
+// this is very messy right now, needs some cleanup
 function initBuffers() {
     // create buffers for cube/tetrahedron data
     // create buffer for horizon
 
+    // The vertices, colors, and indices for a cube
+    let cubeCoords = [
+        1, 1, 1, // A
+        -1, 1, 1, // B
+        -1, -1, 1, // C
+        1, -1, 1, // D
+        1, -1, -1, // E
+        -1, -1, -1, // F
+        -1, 1, -1, // G
+        1, 1, -1, // H
+    ];
+    let cubeIndices = [
+        1, 2, 0, 2, 3, 0,
+        7, 6, 1, 0, 7, 1,
+        1, 6, 2, 6, 5, 2,
+        3, 2, 4, 2, 5, 4,
+        6, 7, 5, 7, 4, 5,
+        0, 3, 7, 3, 4, 7,
+    ];
+    let cubeColors = [
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1,
+        0, 0, 1
+    ];
+    let cubeNormals = calc_normals(Float32Array.from(cubeCoords), cubeIndices, false);
+    let cubeMV = mat4.fromTranslation(mat4.create(), [0, 0.1, 1]);
+    mat4.scale(cubeMV, cubeMV, [0.1, 0.1, 0.1]);
+    objs.push([createVao(gl, [
+        [gl.program.aPosition, cubeCoords, 3],
+        [gl.program.aColor, cubeColors, 3],
+        [gl.program.aNormal, cubeNormals, 3]
+    ], cubeIndices), gl.TRIANGLES, 36, cubeMV]);
+
+    // The vertices, colors, and indices for a tetrahedron
     let tetraCoords = [
-        0, 0, -1,
-        0, Math.sqrt(8/9), 1/3,
-        Math.sqrt(2/3), -Math.sqrt(2/9), 1/3,
-        -Math.sqrt(2/3), -Math.sqrt(2/9), 1/3,
+        0, 0, 1,
+        0, Math.sqrt(8/9), -1/3,
+        Math.sqrt(2/3), -Math.sqrt(2/9), -1/3,
+        -Math.sqrt(2/3), -Math.sqrt(2/9), -1/3,
     ];
+    let tetraIndices = [1, 3, 0, 2, 1, 3];
     let tetraColors = [
-        1, 0, 0, // red
         0, 1, 0, // green
-        0, 0, 1, // blue
-        0, 0, 0 // black
-    ];
-    let tetraIndices = [
-        3, 1, 0, // red triangle
-        2, 0, 1, // green triangle
-        0, 3, 2, // blue triangle
-        1, 2, 3 // black triangle
+        0, 1, 0,
+        0, 1, 0, 
+        0, 1, 0
     ];
 
-    let tetraNormals = calc_normals(Float32Array.from(tetraCoords), tetraIndices, false);
+    let tetraNormals = calc_normals(Float32Array.from(tetraCoords), tetraIndices, true);
 
     objs.push([createVao(gl, [
         [gl.program.aPosition, tetraCoords, 3], 
         [gl.program.aColor, tetraColors, 3],
         [gl.program.aNormal, tetraNormals, 3]
-    ], tetraIndices), gl.TRIANGLES, 12, setTetraMvMatrix()]);
+    ], tetraIndices), gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
+
+    let planeCoords = [
+        1, 0, 1,
+        -1, 0, 1,
+        1, 0, -1,
+        -1, 0, -1
+    ];
+    let planeIndices = [3, 1, 2, 0];
+    let planeColors = [
+        0.7, 0.7, 0.7,
+        0.7, 0.7, 0.7,
+        0.7, 0.7, 0.7,
+        0.7, 0.7, 0.7
+    ];
+    let planeNormals = calc_normals(Float32Array.from(planeCoords), planeIndices, true);
+
+    let scale = 2;
+
+    let mv = mat4.scale(mat4.create(), mat4.create(), [scale, scale, scale]);
+
+    objs.push([createVao(gl, [
+        [gl.program.aPosition, planeCoords, 3], 
+        [gl.program.aColor, planeColors, 3],
+        [gl.program.aNormal, planeNormals, 3]
+    ], planeIndices), gl.TRIANGLE_STRIP, 4, mv]);
 
 }
 
@@ -198,12 +269,11 @@ function render() {
     // Clear the current rendering
     gl.clear(gl.COLOR_BUFFER_BIT);
     
-    // TODO: draw cubes and tetrahedron
+    // TODO: draw better
     // add animation
 
     for (let [vao, type, count, mv] of objs) {
         gl.bindVertexArray(vao);
-        console.log(mv);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
@@ -229,15 +299,12 @@ function updateProjectionMatrix() {
     let [w, h] = [gl.canvas.width, gl.canvas.height];
     let fovy = Math.PI / 4;
     let aspect = w / h;
-    let near = 0.001;
-    let far = 1000;
+    let near = 0.01;
+    let far = 100;
 
     // Update projection matrix uniform
     mat4.perspective(projectionMatrix, fovy, aspect, near, far);
-    mat4.scale(projectionMatrix, projectionMatrix, [1, 1, -1]);
     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, projectionMatrix);
-    console.log(projectionMatrix);
-    //gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, mat4.create());
 }
 
 // This will do the work of updating stuff according to input
@@ -245,13 +312,14 @@ function onKeyboardInput() {
 
 }
 
+// this probably needs improvement
 function setTetraMvMatrix() {
 
-    let mv = mat4.fromTranslation(mat4.create(), [0, 0, 1]);
+    let mv = mat4.create();
 
     let size = 0.1
 
-    mat4.scale(mv, mv, [0.1, 0.1, 0.1]);
+    mat4.scale(mv, mv, [size, size, size]);
 
     
     return mv;
