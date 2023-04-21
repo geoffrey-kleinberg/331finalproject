@@ -293,8 +293,8 @@ function render(ms) {
     let elapsed = ms - last_redraw;
     last_redraw = ms;
 
-    vec3.add(eye, eye, [0, 0, ms / 10000]);
-    vec3.add(horizon, horizon, [0, 0, ms / 10000]);
+    vec3.add(eye, eye, [0, 0, elapsed / 10000]);
+    vec3.add(horizon, horizon, [0, 0, elapsed / 10000]);
 
     let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
@@ -304,7 +304,7 @@ function render(ms) {
 
     for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
         gl.bindVertexArray(vao);
-        mat4.translate(mv, mv, [dx * ms / scale, 0, ms / (scale * dz)]);
+        mat4.translate(mv, mv, [dx * elapsed / scale, 0, elapsed / (scale * dz)]);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
@@ -355,13 +355,13 @@ function onKeyDown(e) {
         e.preventDefault();
         // move right
         for (let obj of dynamicObjects) {
-            obj[6] -= 1 / 50000;
+            obj[6] = -1 / 500;
         }
     } else if (e.keyCode === 39) {
         e.preventDefault();
         // move left
         for (let obj of dynamicObjects) {
-            obj[6] += 1 / 50000;
+            obj[6] = 1 / 500;
         }
     }
 
@@ -373,13 +373,13 @@ function onKeyUp(e) {
         e.preventDefault();
         // move right
         for (let obj of dynamicObjects) {
-            obj[6] += 1 / 50000;
+            obj[6] = 0;
         }
     } else if (e.keyCode === 39) {
         e.preventDefault();
         // move left
         for (let obj of dynamicObjects) {
-            obj[6] -= 1 / 50000;
+            obj[6] = 0;
         }
     }
 
