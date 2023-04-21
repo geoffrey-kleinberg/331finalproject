@@ -13,10 +13,18 @@ const quat = glMatrix.quat;
 
 
 // stores all the objects we have
-let objs = [];
+let staticObjects = [];
+let dynamicObjects = [];
+
+let planeScale = 2.5;
+let tetraScale = 0.1;
 
 // allocate matrices globally
 let projectionMatrix = mat4.create();
+
+
+let eye = vec3.fromValues(0, 1, -1.5);
+let horizon = vec3.fromValues(0, 0, 0.5);
 
 // Once the document is fully loaded run this init function.
 window.addEventListener('load', function init() {
@@ -38,12 +46,13 @@ window.addEventListener('load', function init() {
     initBuffers();
     initEvents();
 
+    setStaticObjects();
+    setDynamicObjects();
+
     // set to size of window
     onWindowResize();
 
     // TODO: Set initial values of uniforms
-    let eye = vec3.fromValues(0, 1, -1);
-    let horizon = vec3.fromValues(0, 0, 1);
     let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
@@ -193,11 +202,11 @@ function initBuffers() {
     let cubeNormals = calc_normals(Float32Array.from(cubeCoords), cubeIndices, false);
     let cubeMV = mat4.fromTranslation(mat4.create(), [0, 0.1, 1]);
     mat4.scale(cubeMV, cubeMV, [0.1, 0.1, 0.1]);
-    objs.push([createVao(gl, [
+    gl.cubeVao = createVao(gl, [
         [gl.program.aPosition, cubeCoords, 3],
         [gl.program.aColor, cubeColors, 3],
         [gl.program.aNormal, cubeNormals, 3]
-    ], cubeIndices), gl.TRIANGLES, 36, cubeMV]);
+    ], cubeIndices); //, gl.TRIANGLES, 36, cubeMV]);
 
     // The vertices, colors, and indices for a tetrahedron
     let tetraCoords = [
@@ -216,11 +225,11 @@ function initBuffers() {
 
     let tetraNormals = calc_normals(Float32Array.from(tetraCoords), tetraIndices, true);
 
-    objs.push([createVao(gl, [
+    gl.tetraVao = createVao(gl, [
         [gl.program.aPosition, tetraCoords, 3], 
         [gl.program.aColor, tetraColors, 3],
         [gl.program.aNormal, tetraNormals, 3]
-    ], tetraIndices), gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
+    ], tetraIndices); //, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
 
     let planeCoords = [
         1, 0, 1,
@@ -237,16 +246,23 @@ function initBuffers() {
     ];
     let planeNormals = calc_normals(Float32Array.from(planeCoords), planeIndices, true);
 
-    let scale = 2;
-
-    let mv = mat4.scale(mat4.create(), mat4.create(), [scale, scale, scale]);
-
-    objs.push([createVao(gl, [
+    gl.planeVao = createVao(gl, [
         [gl.program.aPosition, planeCoords, 3], 
         [gl.program.aColor, planeColors, 3],
         [gl.program.aNormal, planeNormals, 3]
-    ], planeIndices), gl.TRIANGLE_STRIP, 4, mv]);
+    ], planeIndices); //, gl.TRIANGLE_STRIP, 4, mv]);
 
+}
+
+function setStaticObjects() {
+
+}
+
+function setDynamicObjects() {
+    let mv = mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]);
+    dynamicObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv, planeScale, 10000]);
+
+    dynamicObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix(), tetraScale, 10000]);
 }
 
 /**
@@ -262,22 +278,45 @@ function initEvents() {
 
 }
 
+let last_redraw;
+let elapsed;
+let o = 0;
 /**
  * Render the scene.
  */
-function render() {
+function render(ms) {
     // Clear the current rendering
     gl.clear(gl.COLOR_BUFFER_BIT);
+
+    if (!ms) { ms = last_redraw = performance.now(); }
+    let elapsed = ms - last_redraw;
+    last_redraw = ms;
+
+    vec3.add(eye, eye, [0, 0, ms / 10000]);
+    vec3.add(horizon, horizon, [0, 0, ms / 10000]);
+
+    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
+    gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
     
     // TODO: draw better
     // add animation
 
-    for (let [vao, type, count, mv] of objs) {
+    for (let [vao, type, count, mv, scale, dz] of dynamicObjects) {
+        gl.bindVertexArray(vao);
+        mat4.translate(mv, mv, [0, 0, ms / (scale * dz)]);
+        gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
+        gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
+        gl.bindVertexArray(null);
+    }
+
+    for (let [vao, type, count, mv] of staticObjects) {
         gl.bindVertexArray(vao);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
     }
+
+    window.requestAnimationFrame(render);
 
 
 }
@@ -316,13 +355,8 @@ function onKeyboardInput() {
 function setTetraMvMatrix() {
 
     let mv = mat4.create();
-
-    let size = 0.1
-
-    mat4.scale(mv, mv, [size, size, size]);
-
-    
+    mat4.translate(mv, mv, [0, 0, -0.5]);
+    mat4.scale(mv, mv, [tetraScale, tetraScale, tetraScale]);
     return mv;
-    
 
 }
