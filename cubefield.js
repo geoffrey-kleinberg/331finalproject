@@ -229,7 +229,7 @@ function initBuffers() {
         [gl.program.aPosition, tetraCoords, 3], 
         [gl.program.aColor, tetraColors, 3],
         [gl.program.aNormal, tetraNormals, 3]
-    ], tetraIndices); //, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
+    ], tetraIndices);
 
     let planeCoords = [
         1, 0, 1,
@@ -250,7 +250,7 @@ function initBuffers() {
         [gl.program.aPosition, planeCoords, 3], 
         [gl.program.aColor, planeColors, 3],
         [gl.program.aNormal, planeNormals, 3]
-    ], planeIndices); //, gl.TRIANGLE_STRIP, 4, mv]);
+    ], planeIndices);
 
 }
 
@@ -260,9 +260,9 @@ function setStaticObjects() {
 
 function setDynamicObjects() {
     let mv = mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]);
-    dynamicObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv, planeScale, 10000]);
+    dynamicObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv, planeScale, 10000, 0]);
 
-    dynamicObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix(), tetraScale, 10000]);
+    dynamicObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix(), tetraScale, 10000, 0]);
 }
 
 /**
@@ -276,11 +276,12 @@ function initEvents() {
 
     // TODO: add listeners for keyboard input
 
+    window.addEventListener('keydown', onKeyDown);
+
 }
 
 let last_redraw;
 let elapsed;
-let o = 0;
 /**
  * Render the scene.
  */
@@ -301,9 +302,9 @@ function render(ms) {
     // TODO: draw better
     // add animation
 
-    for (let [vao, type, count, mv, scale, dz] of dynamicObjects) {
+    for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
         gl.bindVertexArray(vao);
-        mat4.translate(mv, mv, [0, 0, ms / (scale * dz)]);
+        mat4.translate(mv, mv, [dx * ms / scale, 0, ms / (scale * dz)]);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
@@ -347,7 +348,42 @@ function updateProjectionMatrix() {
 }
 
 // This will do the work of updating stuff according to input
-function onKeyboardInput() {
+function onKeyDown(e) {
+    window.addEventListener('keyup', onKeyUp);
+
+    if (e.keyCode === 37) {
+        e.preventDefault();
+        // move right
+        for (let obj of dynamicObjects) {
+            obj[6] -= 1 / 50000;
+        }
+    } else if (e.keyCode === 39) {
+        e.preventDefault();
+        // move left
+        for (let obj of dynamicObjects) {
+            obj[6] += 1 / 50000;
+        }
+    }
+
+}
+
+function onKeyUp(e) {
+
+    if (e.keyCode === 37) {
+        e.preventDefault();
+        // move right
+        for (let obj of dynamicObjects) {
+            obj[6] += 1 / 50000;
+        }
+    } else if (e.keyCode === 39) {
+        e.preventDefault();
+        // move left
+        for (let obj of dynamicObjects) {
+            obj[6] -= 1 / 50000;
+        }
+    }
+
+    window.removeEventListener('keyUp', onKeyUp);
 
 }
 
