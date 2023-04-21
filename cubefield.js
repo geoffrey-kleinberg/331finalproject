@@ -253,9 +253,18 @@ function initBuffers() {
     ], planeIndices);
 
 }
+function generateObject(z) {
+    let mv = mat4.scale(mat4.create(), mat4.create(), [.1, .1, .1]);
+    mv = mat4.translate(mv, mv, [(Math.random()-.5)*24, (Math.random()*.5), 2 + z]);
+    staticObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .2]);
 
+}
 function setStaticObjects() {
-
+    let z = 5
+    while(z < 50) {
+        generateObject(z)
+        z += .6
+    }
 }
 
 function setDynamicObjects() {
@@ -281,6 +290,7 @@ function initEvents() {
 }
 
 let last_redraw;
+let last_object = 0;
 let elapsed;
 /**
  * Render the scene.
@@ -289,19 +299,23 @@ function render(ms) {
     // Clear the current rendering
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    // add animation
     if (!ms) { ms = last_redraw = performance.now(); }
-    let elapsed = ms - last_redraw;
+    elapsed = ms - last_redraw;
     last_redraw = ms;
-
     vec3.add(eye, eye, [0, 0, elapsed / 10000]);
     vec3.add(horizon, horizon, [0, 0, elapsed / 10000]);
 
     let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
     
-    // TODO: draw better
-    // add animation
+    last_object += elapsed
+    if(last_object > 600) {
+        last_object -= 600
+        generateObject(50 + ms/1000)
+    } 
 
+    // TODO: draw better
     for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
         gl.bindVertexArray(vao);
         mat4.translate(mv, mv, [dx * elapsed / scale, 0, elapsed / (scale * dz)]);
@@ -355,13 +369,13 @@ function onKeyDown(e) {
         e.preventDefault();
         // move right
         for (let obj of dynamicObjects) {
-            obj[6] = -1 / 500;
+            obj[6] = 1 / 800;
         }
     } else if (e.keyCode === 39) {
         e.preventDefault();
         // move left
         for (let obj of dynamicObjects) {
-            obj[6] = 1 / 500;
+            obj[6] = -1 / 800;
         }
     }
 
