@@ -2,6 +2,17 @@
 // Based on https://www.cubefield.org.uk/
 'use strict';
 
+
+// TODO:
+// Collision detection
+// Score/high score
+// Speed increase over time
+// Textures on cubes (brick wall?)
+// Some "advanced graphics thing" (translucency?)
+// 3 levels (no side to side moving cubes, some moving cubes, all moving cubes)
+// HTML level selection
+// HTML game explanation
+
 // Global WebGL context variable
 let gl;
 
@@ -16,15 +27,25 @@ const quat = glMatrix.quat;
 let staticObjects = [];
 let dynamicObjects = [];
 
-let planeScale = 2.5;
-let tetraScale = 0.1;
+let planeScale = 100;
+let tetraScale = 0.05;
 
 // allocate matrices globally
 let projectionMatrix = mat4.create();
 
+let envDx = 0;
 
-let eye = vec3.fromValues(0, 1, -1.5);
-let horizon = vec3.fromValues(0, 0, 0.5);
+
+let eye = vec3.fromValues(0, 0.25, -0.75);
+let horizon = vec3.fromValues(0, 0.25, 100);
+let up = vec3.fromValues(0, 1, 2);
+
+let upRotation = 0;
+
+let dUp = 0;
+
+let maxRight = 0.1;
+let minLeft = -0.1;
 
 // Once the document is fully loaded run this init function.
 window.addEventListener('load', function init() {
@@ -52,8 +73,7 @@ window.addEventListener('load', function init() {
     // set to size of window
     onWindowResize();
 
-    // TODO: Set initial values of uniforms
-    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
+    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, up);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
     //Render initial scene
@@ -253,18 +273,19 @@ function initBuffers() {
     ], planeIndices);
 
 }
-function generateObject(z) {
-    let mv = mat4.scale(mat4.create(), mat4.create(), [.05, .05, .05]);
-    mat4.translate(mv, mv, [(Math.random()-.5)*24, 1, 2 + z]);
-    // allows for flexibility if we make levels with moving cubes
-    dynamicObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .1, -1 / 10000, 0]);
+function generateObject(x, z) {
+    let mv = mat4.scale(mat4.create(), mat4.create(), [.04, .04, .04]);
+    mat4.translate(mv, mv, [x, 1, z]);
+    //allows for flexibility if we make levels with moving cubes
+    dynamicObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .1, -1 / 100, 0]);
 
 }
 function setDynamicObjects() {
-    let z = 5
-    while(z < 50) {
-        generateObject(z)
-        z += .6
+    for (let i = 0; i < 100; i++) {
+        let x = i * 2 - 99;
+        if (Math.random() < 0.07) {
+            generateObject(x, 100)
+        }
     }
 }
 
@@ -306,18 +327,36 @@ function render(ms) {
     last_redraw = ms;
     
     last_object += elapsed
-    if(last_object > 600) {
-        last_object -= 600
-        generateObject(50 + ms/1000)
+    if(last_object > 250) {
+        last_object -= 250
+        setDynamicObjects();
     } 
 
-    // TODO: draw better
+    if (dUp > 0) {
+        upRotation = Math.min(maxRight, upRotation + dUp);
+    } else if (dUp < 0) {
+        upRotation = Math.max(minLeft, upRotation + dUp);
+    }    
+
+    updateViewMatrix(upRotation);
+
     for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
         gl.bindVertexArray(vao);
+        mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
         mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
+    }
+
+    //remove objects that are outside of camera
+    for (let i = 0; i < dynamicObjects.length; i++) {
+        let z = dynamicObjects[i][3][14];
+        if (z < -0.3) {
+            dynamicObjects.splice(i, 1);
+            i--;
+        }
+        
     }
 
     for (let [vao, type, count, mv] of staticObjects) {
@@ -336,7 +375,6 @@ function render(ms) {
  * Keep the canvas sized to the window.
  */
 function onWindowResize() {
-    // TODO: projection needs to be updated
     let [w, h] = [window.innerWidth, window.innerHeight];
     gl.canvas.width = w;
     gl.canvas.height = h;
@@ -357,6 +395,16 @@ function updateProjectionMatrix() {
     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, projectionMatrix);
 }
 
+function updateViewMatrix(angle) {
+
+    let rotation = mat4.fromRotation(mat4.create(), angle, [0, 0, 1]);
+
+    let thisUp = vec3.transformMat4(vec3.create(), up, rotation)
+
+    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, thisUp);
+    gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
+}
+
 // This will do the work of updating stuff according to input
 function onKeyDown(e) {
     window.addEventListener('keyup', onKeyUp);
@@ -364,15 +412,15 @@ function onKeyDown(e) {
     if (e.keyCode === 37) {
         e.preventDefault();
         // move right
-        for (let obj of dynamicObjects) {
-            obj[6] = -1 / 800;
-        }
+        envDx = -1 / 150;
+        maxRight = 0.1;
+        dUp = 0.01
     } else if (e.keyCode === 39) {
         e.preventDefault();
         // move left
-        for (let obj of dynamicObjects) {
-            obj[6] = 1 / 800;
-        }
+        envDx = 1 / 150;
+        minLeft = -0.1;
+        dUp = -0.01;
     }
 
 }
@@ -381,16 +429,14 @@ function onKeyUp(e) {
 
     if (e.keyCode === 37) {
         e.preventDefault();
-        // move right
-        for (let obj of dynamicObjects) {
-            obj[6] = 0;
-        }
+        envDx = 0;
+        maxRight = 0;
+        dUp = -0.01;
     } else if (e.keyCode === 39) {
         e.preventDefault();
-        // move left
-        for (let obj of dynamicObjects) {
-            obj[6] = 0;
-        }
+        envDx = 0;
+        minLeft = 0;
+        dUp = 0.01;
     }
 
     window.removeEventListener('keyUp', onKeyUp);
@@ -401,7 +447,6 @@ function onKeyUp(e) {
 function setTetraMvMatrix() {
 
     let mv = mat4.create();
-    mat4.translate(mv, mv, [0, 0, -0.5]);
     mat4.scale(mv, mv, [tetraScale, tetraScale, tetraScale]);
     return mv;
 
