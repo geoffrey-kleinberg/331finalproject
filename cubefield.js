@@ -254,12 +254,13 @@ function initBuffers() {
 
 }
 function generateObject(z) {
-    let mv = mat4.scale(mat4.create(), mat4.create(), [.1, .1, .1]);
-    mv = mat4.translate(mv, mv, [(Math.random()-.5)*24, (Math.random()*.5), 2 + z]);
-    staticObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .2]);
+    let mv = mat4.scale(mat4.create(), mat4.create(), [.05, .05, .05]);
+    mat4.translate(mv, mv, [(Math.random()-.5)*24, 1, 2 + z]);
+    // allows for flexibility if we make levels with moving cubes
+    dynamicObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .1, -1 / 10000, 0]);
 
 }
-function setStaticObjects() {
+function setDynamicObjects() {
     let z = 5
     while(z < 50) {
         generateObject(z)
@@ -267,11 +268,11 @@ function setStaticObjects() {
     }
 }
 
-function setDynamicObjects() {
+function setStaticObjects() {
     let mv = mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]);
-    dynamicObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv, planeScale, 10000, 0]);
+    staticObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv]);
 
-    dynamicObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix(), tetraScale, 10000, 0]);
+    staticObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
 }
 
 /**
@@ -303,11 +304,6 @@ function render(ms) {
     if (!ms) { ms = last_redraw = performance.now(); }
     elapsed = ms - last_redraw;
     last_redraw = ms;
-    vec3.add(eye, eye, [0, 0, elapsed / 10000]);
-    vec3.add(horizon, horizon, [0, 0, elapsed / 10000]);
-
-    let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, [0, 1, 2]);
-    gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
     
     last_object += elapsed
     if(last_object > 600) {
@@ -318,7 +314,7 @@ function render(ms) {
     // TODO: draw better
     for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
         gl.bindVertexArray(vao);
-        mat4.translate(mv, mv, [dx * elapsed / scale, 0, elapsed / (scale * dz)]);
+        mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindVertexArray(null);
@@ -369,13 +365,13 @@ function onKeyDown(e) {
         e.preventDefault();
         // move right
         for (let obj of dynamicObjects) {
-            obj[6] = 1 / 800;
+            obj[6] = -1 / 800;
         }
     } else if (e.keyCode === 39) {
         e.preventDefault();
         // move left
         for (let obj of dynamicObjects) {
-            obj[6] = -1 / 800;
+            obj[6] = 1 / 800;
         }
     }
 
