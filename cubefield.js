@@ -7,7 +7,6 @@
 // Collision detection
 // Score/high score
 // Speed increase over time
-// Textures on cubes (brick wall?)
 // Some "advanced graphics thing" (translucency of tetrhedron? 
 // special effect translucent cubes?)
 // 3 levels (no side to side moving cubes, some moving cubes, all moving cubes)
@@ -26,7 +25,7 @@ const quat = glMatrix.quat;
 
 // stores all the objects we have
 let staticObjects = [];
-let dynamicObjects = [];
+let objects = [];
 
 let planeScale = 100;
 let tetraScale = 0.05;
@@ -46,11 +45,16 @@ let dUp = 0;
 let maxRight = 0.1;
 let minLeft = -0.1;
 
+
+// increments based on how long we've been playing
 let score = 0;
 let highScore = 0;
 
+// selected from HTML
 let difficulty = 0;
 
+// set to false when we lose and the game will pause
+// until we click HTML button to restart
 let playing = true;
 
 // Once the document is fully loaded run this init function.
@@ -73,8 +77,7 @@ window.addEventListener('load', function init() {
     initBuffers();
     initEvents();
 
-    setStaticObjects();
-    setDynamicObjects();
+    initObjects();
 
     // set to size of window
     onWindowResize();
@@ -82,10 +85,9 @@ window.addEventListener('load', function init() {
     let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, up);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
+    // load texture and also render scene
+    
     initTextures();
-
-    //Render initial scene
-    // render();
     
 });
 
@@ -235,14 +237,14 @@ function initBuffers() {
         0, 3, 7, 3, 4, 7,
     ];
     let cubeColors = [
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1,
-        0, 0, 1
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0
     ];
     let cube_tex_coords = [
         0, 0, // A
@@ -261,7 +263,7 @@ function initBuffers() {
         [gl.program.aColor, cubeColors, 3],
         [gl.program.aNormal, cubeNormals, 3],
         [gl.program.aTextureCoord, cube_tex_coords, 2]
-    ], cubeIndices); //, gl.TRIANGLES, 36, cubeMV]);
+    ], cubeIndices);
 
     // The vertices, colors, and indices for a tetrahedron
     let tetraCoords = [
@@ -315,7 +317,6 @@ function initTextures() {
     image.src = 'brickwall.png';
     image.addEventListener('load', () => {
         gl.cubeTexture = loadTexture(gl, image, 0);
-
         render();
 
     })
@@ -326,10 +327,10 @@ function generateObject(x, z) {
     let mv = mat4.scale(mat4.create(), mat4.create(), [.04, .04, .04]);
     mat4.translate(mv, mv, [x, 1, z]);
     //allows for flexibility if we make levels with moving cubes
-    dynamicObjects.push([gl.cubeVao, gl.TRIANGLES, 36, mv, .1, speed, 0]);
+    objects.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, 0]);
 
 }
-function setDynamicObjects() {
+function generateNewCubes() {
     for (let i = 0; i < 100; i++) {
         let x = i * 2 - 99;
         if (Math.random() < 0.07) {
@@ -338,11 +339,9 @@ function setDynamicObjects() {
     }
 }
 
-function setStaticObjects() {
-    let mv = mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]);
-    staticObjects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, mv]);
-
-    staticObjects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, setTetraMvMatrix()]);
+function initObjects() {
+    objects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, null, mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]), 1, 0, 0]);
+    objects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, null, mat4.scale(mat4.create(), mat4.create(), [tetraScale, tetraScale, tetraScale]), 1, 0, 0]);
 }
 
 /**
@@ -353,9 +352,6 @@ function initEvents() {
     //add listeners
 
     window.addEventListener('resize', onWindowResize);
-
-    // TODO: add listeners for keyboard input
-
     window.addEventListener('keydown', onKeyDown);
 
 }
@@ -370,7 +366,7 @@ function render(ms) {
     // Clear the current rendering
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // add animation
+    // animation
     if (!ms) { ms = last_redraw = performance.now(); }
     elapsed = ms - last_redraw;
     last_redraw = ms;
@@ -378,7 +374,7 @@ function render(ms) {
     last_object += elapsed
     if(last_object > 250) {
         last_object -= 250
-        setDynamicObjects();
+        generateNewCubes();
     } 
 
     if (dUp > 0) {
@@ -390,39 +386,39 @@ function render(ms) {
     updateViewMatrix(upRotation);
     gl.uniform1i(gl.program.uTexture, 0);
 
-    for (let [vao, type, count, mv, scale, dz, dx] of dynamicObjects) {
+    for (let [vao, type, count, texture, mv, scale, dz, dx] of objects) {
         gl.bindVertexArray(vao);
-        gl.bindTexture(gl.TEXTURE_2D, gl.cubeTexture);
-        mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
-        mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
+        if (texture) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(gl.program.uTextured, 1);
+        } else {
+            gl.uniform1i(gl.program.uTextured, 0);
+        }
+        if (dz !== 0) {
+            mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
+            mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
+        }
         // check if mv makes the cube collide with tetrahedron
 
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
-        gl.uniform1i(gl.program.uTextured, 1);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindTexture(gl.TEXTURE_2D, null);
         gl.bindVertexArray(null);
     }
 
     //remove objects that are outside of camera
-    for (let i = 0; i < dynamicObjects.length; i++) {
-        let z = dynamicObjects[i][3][14];
+    for (let i = 0; i < objects.length; i++) {
+        let z = objects[i][4][14];
         if (z < -0.3) {
-            dynamicObjects.splice(i, 1);
+            objects.splice(i, 1);
             i--;
         }
         
     }
 
-    for (let [vao, type, count, mv] of staticObjects) {
-        gl.bindVertexArray(vao);
-        gl.uniform1i(gl.program.uTextured, 0);
-        gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
-        gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
-        gl.bindVertexArray(null);
+    if (playing) {
+        window.requestAnimationFrame(render);
     }
-
-    window.requestAnimationFrame(render);
 
 
 }
@@ -461,7 +457,6 @@ function updateViewMatrix(angle) {
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 }
 
-// This will do the work of updating stuff according to input
 function onKeyDown(e) {
     window.addEventListener('keyup', onKeyUp);
 
@@ -496,14 +491,5 @@ function onKeyUp(e) {
     }
 
     window.removeEventListener('keyUp', onKeyUp);
-
-}
-
-// this probably needs improvement
-function setTetraMvMatrix() {
-
-    let mv = mat4.create();
-    mat4.scale(mv, mv, [tetraScale, tetraScale, tetraScale]);
-    return mv;
 
 }
