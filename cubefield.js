@@ -28,7 +28,7 @@ let staticObjects = [];
 let objects = [];
 
 let planeScale = 100;
-let tetraScale = 0.05;
+let tetraScale = 0.03;
 let cubeScale = 0.04;
 
 // allocate matrices globally
@@ -52,7 +52,7 @@ let score = 0;
 let highScore = 0;
 
 // selected from HTML
-let difficulty = 0;
+let difficultyMultiplier = 0;
 
 // set to false when we lose and the game will pause
 // until we click HTML button to restart
@@ -268,7 +268,7 @@ function initBuffers() {
     // The vertices, colors, and indices for a tetrahedron
     let tetraCoords = [
         0, 4/3, Math.sqrt(2/9),
-        0, 0, Math.sqrt(8/9) + Math.sqrt(2/9),
+        0, 0, Math.sqrt(2),
         Math.sqrt(2/3), 0, 0,
         -Math.sqrt(2/3), 0, 0
     ];
@@ -328,7 +328,7 @@ function generateObject(x, z) {
     mat4.translate(mv, mv, [x, 1, z]);
     //allows for flexibility if we make levels with moving cubes
     // (Math.random() - 0.5) * 1 / 100
-    objects.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, 0]);
+    objects.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, (Math.random() - 0.5) * difficultyMultiplier]);
 
 }
 function generateNewCubes() {
@@ -357,13 +357,34 @@ function initEvents() {
 
     document.getElementById('restart').addEventListener('click', restart);
 
+    document.getElementById('difficulty').addEventListener('input', changeDifficulty);
+
 }
 
 function restart() {
     score = 0;
     objects = [];
+    envDx = 0;
+    upRotation = 0;
+    dUp = 0;
     initObjects();
     playing = true;
+}
+
+function changeDifficulty() {
+    let difficulty = document.getElementById('difficulty').value;
+
+    if (difficulty === "Easy") {
+        difficultyMultiplier = 0;
+    } else if (difficulty === "Medium") {
+        difficultyMultiplier = 1 / 500;
+    } else if (difficulty === "Hard") {
+        difficultyMultiplier = 1 / 250;
+    } else if (difficulty === "Impossible") {
+        difficultyMultiplier = 1 / 100;
+    }
+
+    restart();
 }
 
 let last_redraw;
@@ -408,12 +429,13 @@ function render(ms) {
         } else {
             gl.uniform1i(gl.program.uTextured, 0);
         }
+        // only for moving objects
         if (dz !== 0) {
             mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
             mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
+            // check if mv makes the cube collide with tetrahedron
+            checkCollision(mv);
         }
-        // check if mv makes the cube collide with tetrahedron
-
         gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
         gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
         gl.bindTexture(gl.TEXTURE_2D, null);
@@ -440,6 +462,50 @@ function render(ms) {
     window.requestAnimationFrame(render);
 
 
+}
+
+function checkCollision(mv) {
+    let centerX = mv[12];
+    let centerZ = mv[14];
+
+    let tetraPointZ = Math.sqrt(2) * tetraScale;
+    let tetraRightX = Math.sqrt(2/3) * tetraScale;
+    let tetraLeftX = -Math.sqrt(2/3) * tetraScale;
+
+    let baseZ = centerZ - cubeScale;
+    let backZ = centerZ + cubeScale;
+    let leftX = centerX - cubeScale;
+    let rightX = centerX + cubeScale;
+    // check if front line of cube intersects tetrahedron
+    let x0 = (baseZ - tetraPointZ) / Math.sqrt(3);
+    if (x0 >= tetraLeftX && x0 <= 0 && x0 >= leftX && x0 <= rightX) {
+        playing = false;
+    }
+    let x1 = (baseZ - tetraPointZ) / -Math.sqrt(3);
+    if (x1 <= tetraRightX && x1 >= 0 && x1 >= leftX && x1 <= rightX) {
+        playing = false;
+    }
+
+    // check if left line of cube intersects tetrahedron
+    let z0 = leftX * Math.sqrt(3) + tetraScale * Math.sqrt(2);
+    if (z0 >= 0 && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
+        playing = false;
+    }
+    let z1 = leftX * -Math.sqrt(3) + tetraScale * Math.sqrt(2);
+    if (z1 >= 0 && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
+        playing = false;
+    }
+
+    // check if right line of cube intersects tetrahedron
+    z0 = rightX * Math.sqrt(3) + tetraScale * Math.sqrt(2);
+    if (z0 >= 0 && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
+        playing = false;
+    }
+    z1 = rightX * -Math.sqrt(3) + tetraScale * Math.sqrt(2);
+    if (z1 >= 0 && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
+        playing = false;
+    }
+    
 }
 
 /**
@@ -479,13 +545,13 @@ function updateViewMatrix(angle) {
 function onKeyDown(e) {
     window.addEventListener('keyup', onKeyUp);
 
-    if (e.keyCode === 37) {
+    if (e.keyCode === 37 && playing) {
         e.preventDefault();
         // move right
         envDx = -1 / 150;
         maxRight = 0.1;
         dUp = 0.01
-    } else if (e.keyCode === 39) {
+    } else if (e.keyCode === 39 && playing) {
         e.preventDefault();
         // move left
         envDx = 1 / 150;
@@ -497,12 +563,12 @@ function onKeyDown(e) {
 
 function onKeyUp(e) {
 
-    if (e.keyCode === 37) {
+    if (e.keyCode === 37 && playing) {
         e.preventDefault();
         envDx = 0;
         maxRight = 0;
         dUp = -0.01;
-    } else if (e.keyCode === 39) {
+    } else if (e.keyCode === 39 && playing) {
         e.preventDefault();
         envDx = 0;
         minLeft = 0;
