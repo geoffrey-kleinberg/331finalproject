@@ -20,8 +20,16 @@
             body {
                 margin: 0;
                 overflow: no-scroll;
+                line-height: 1em;
             }
             canvas { position: absolute; }
+            #controls {
+                width: 350px;
+                top: 0; right: 0;
+                padding: 5px;
+                border: 1px solid rgba(0, 0, 0, 0.5);
+                background: rgba(255, 255, 255, 0.5);
+            }
         </style>
     </head>
     <body>
@@ -29,5 +37,20 @@
         <canvas id="webgl-canvas" width="400" height="400">
             Your browser doesn't support the HTML5 canvas element.
         </canvas>
+        <div id=controls>
+                <select name="difficulty" id="difficulty">
+                    <option name="easy">Easy</option>
+                    <option name="med">Medium</option>
+                    <option name="hard">Hard</option>
+                </select>
+                <button type="button" name="restart">Restart</button>
+                <h3 id="score">Score: 0</h3>
+                <h3 id="highscore">High Score: 0</h3>
+                <p>Control the tetrahedron with the left and right
+                    <br> arrow keys and don't hit any cubes. 
+                    <br> You will start to speed up over time, 
+                    <br>but your score will also increase faster.</p>
+            </table>
+        </div>
     </body>
 </html>

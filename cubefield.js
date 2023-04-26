@@ -415,6 +415,11 @@ function render(ms) {
         }
         
     }
+    
+    score += 1;
+    document.getElementById('score').innerHTML = "Score: " + score;
+    highScore = Math.max(score, highScore);
+    document.getElementById('highscore').innerHTML = "High Score: " + score;
 
     if (playing) {
         window.requestAnimationFrame(render);
