@@ -47,7 +47,8 @@ let runTime = 0;
 let highScore = 0;
 let dScore = 1;
 
-// selected from HTML
+// difficulty
+let difficulty;
 let difficultyMultiplier = 0;
 
 // set to false when we lose and the game will pause
@@ -83,6 +84,7 @@ window.addEventListener('load', function init() {
     // set to size of window
     onWindowResize();
 
+    difficulty = document.getElementById('difficulty').value;
     let viewMatrix = mat4.lookAt(mat4.create(), eye, horizon, up);
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
@@ -370,11 +372,17 @@ function restart() {
     runTime = 0;
     speed = -1 / 100;
     playing = true;
+    // needed here to reset dScore
+    setDifficulty(difficulty);
 }
 
 function changeDifficulty() {
-    let difficulty = document.getElementById('difficulty').value;
+    difficulty = document.getElementById('difficulty').value;
+    setDifficulty(difficulty);
+    restart();
+}
 
+function setDifficulty(difficulty) {
     if (difficulty === "Easy") {
         difficultyMultiplier = 0;
         dScore = 1;
@@ -387,9 +395,10 @@ function changeDifficulty() {
     } else if (difficulty === "Impossible") {
         difficultyMultiplier = 1 / 100;
         dScore = 3;
+    } else if (difficulty === "Luck") {
+        difficultyMultiplier = 1 / 40;
+        dScore = 5;
     }
-
-    restart();
 }
 
 let last_redraw;
@@ -430,8 +439,7 @@ function render(ms) {
 
     for (let cube of cubes) {
         let [mv, scale, dz, dx] = cube.slice(4);
-        mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
-        mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
+        mat4.translate(mv, mv, [(dx + envDx) * elapsed / scale, 0, dz * elapsed / scale]);
         // check if mv makes the cube collide with tetrahedron
         checkCollision(mv);
         drawObject(cube);
