@@ -4,14 +4,8 @@
 
 
 // TODO:
-// Collision detection
-// Score/high score
 // Speed increase over time
-// Some "advanced graphics thing" (translucency of tetrhedron? 
-// special effect translucent cubes?)
-// 3 levels (no side to side moving cubes, some moving cubes, all moving cubes)
-// HTML level selection
-// HTML game explanation
+// score varying with difficulty
 
 // Global WebGL context variable
 let gl;
@@ -24,8 +18,9 @@ const quat = glMatrix.quat;
 
 
 // stores all the objects we have
-let staticObjects = [];
-let objects = [];
+let plane;
+let cubes = [];
+let tetra;
 
 let planeScale = 100;
 let tetraScale = 0.03;
@@ -71,7 +66,6 @@ window.addEventListener('load', function init() {
     // Configure WebGL
     gl.viewport(0, 0, canvas.width, canvas.height); // this is the region of the canvas we want to draw on (all of it)
     gl.clearColor(1.0, 1.0, 1.0, 0.0); // setup the background color with red, green, blue, and alpha
-    gl.enable(gl.DEPTH_TEST);
 
     // Initialize the WebGL program and data
     gl.program = initProgram();
@@ -80,6 +74,11 @@ window.addEventListener('load', function init() {
 
     initObjects();
 
+    // translucency settings
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
     // set to size of window
     onWindowResize();
 
@@ -87,7 +86,6 @@ window.addEventListener('load', function init() {
     gl.uniformMatrix4fv(gl.program.uViewMatrix, false, viewMatrix);
 
     // load texture and also render scene
-    
     initTextures();
     
 });
@@ -108,7 +106,7 @@ function initProgram() {
 
         in vec4 aPosition;
         in vec3 aNormal;
-        in vec3 aColor;
+        in vec4 aColor;
         in vec2 aTextureCoord;
 
         vec4 lightPosition = vec4(0.0, 10.0, 0.0, 0.0);
@@ -116,7 +114,7 @@ function initProgram() {
         out vec3 vNormalVector;
         out vec3 vLightVector;
         out vec3 vEyeVector;
-        flat out vec3 vColor;
+        flat out vec4 vColor;
         out vec2 vTextureCoord;
         
         void main() {
@@ -148,7 +146,7 @@ function initProgram() {
         const float materialShininess = 10.0;
 
         // Fragment base color
-        flat in vec3 vColor;
+        flat in vec4 vColor;
         // Vectors (varying variables from vertex shader)
         in vec3 vNormalVector;
         in vec3 vLightVector;
@@ -177,18 +175,18 @@ function initProgram() {
                 specular = pow(max(dot(R, E), 0.0), materialShininess);
             }
             
-            vec3 color;
+            vec4 color;
             if (uTextured) {
-                color = texture(uTexture, vTextureCoord).rgb;
+                color = texture(uTexture, vTextureCoord);
             } else {
                 color = vColor;
             }
 
             // Compute final color
             fragColor.rgb =
-                ((materialAmbient + materialDiffuse * diffuse) * color
+                ((materialAmbient + materialDiffuse * diffuse) * color.rgb
                 + materialSpecular * specular) * lightColor;
-            fragColor.a = 1.0;
+            fragColor.a = vColor.a;
         }`
     );
 
@@ -237,14 +235,14 @@ function initBuffers() {
         0, 3, 7, 3, 4, 7,
     ];
     let cubeColors = [
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1,
+        0, 0, 0, 1
     ];
     let cube_tex_coords = [
         0, 0, // A
@@ -260,7 +258,7 @@ function initBuffers() {
 
     gl.cubeVao = createVao(gl, [
         [gl.program.aPosition, cubeCoords, 3],
-        [gl.program.aColor, cubeColors, 3],
+        [gl.program.aColor, cubeColors, 4],
         [gl.program.aNormal, cubeNormals, 3],
         [gl.program.aTextureCoord, cube_tex_coords, 2]
     ], cubeIndices);
@@ -273,18 +271,19 @@ function initBuffers() {
         -Math.sqrt(2/3), 0, 0
     ];
     let tetraIndices = [1, 3, 0, 2, 1, 3];
+    let tetraAlpha = 0.5;
     let tetraColors = [
-        0, 1, 0, // green
-        0, 1, 0,
-        0, 1, 0, 
-        0, 1, 0
+        0, 1, 0, tetraAlpha,// green
+        0, 1, 0, tetraAlpha,
+        0, 1, 0, tetraAlpha,
+        0, 1, 0, tetraAlpha
     ];
 
     let tetraNormals = calc_normals(Float32Array.from(tetraCoords), tetraIndices, true);
 
     gl.tetraVao = createVao(gl, [
         [gl.program.aPosition, tetraCoords, 3], 
-        [gl.program.aColor, tetraColors, 3],
+        [gl.program.aColor, tetraColors, 4],
         [gl.program.aNormal, tetraNormals, 3]
     ], tetraIndices);
 
@@ -296,16 +295,16 @@ function initBuffers() {
     ];
     let planeIndices = [3, 1, 2, 0];
     let planeColors = [
-        0.7, 0.7, 0.7,
-        0.7, 0.7, 0.7,
-        0.7, 0.7, 0.7,
-        0.7, 0.7, 0.7
+        0.7, 0.7, 0.7, 1,
+        0.7, 0.7, 0.7, 1,
+        0.7, 0.7, 0.7, 1,
+        0.7, 0.7, 0.7, 1
     ];
     let planeNormals = calc_normals(Float32Array.from(planeCoords), planeIndices, true);
 
     gl.planeVao = createVao(gl, [
         [gl.program.aPosition, planeCoords, 3], 
-        [gl.program.aColor, planeColors, 3],
+        [gl.program.aColor, planeColors, 4],
         [gl.program.aNormal, planeNormals, 3]
     ], planeIndices);
 
@@ -326,9 +325,9 @@ function initTextures() {
 function generateObject(x, z) {
     let mv = mat4.scale(mat4.create(), mat4.create(), [cubeScale, cubeScale, cubeScale]);
     mat4.translate(mv, mv, [x, 1, z]);
-    //allows for flexibility if we make levels with moving cubes
-    // (Math.random() - 0.5) * 1 / 100
-    objects.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, (Math.random() - 0.5) * difficultyMultiplier]);
+
+    // need to draw these first for translucency, so add them at the beginning of array
+    cubes.unshift([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, (Math.random() - 0.5) * difficultyMultiplier]);
 
 }
 function generateNewCubes() {
@@ -341,8 +340,8 @@ function generateNewCubes() {
 }
 
 function initObjects() {
-    objects.push([gl.planeVao, gl.TRIANGLE_STRIP, 4, null, mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]), 1, 0, 0]);
-    objects.push([gl.tetraVao, gl.TRIANGLE_STRIP, 6, null, mat4.scale(mat4.create(), mat4.create(), [tetraScale, tetraScale, tetraScale]), 1, 0, 0]);
+    plane = [gl.planeVao, gl.TRIANGLE_STRIP, 4, null, mat4.scale(mat4.create(), mat4.create(), [planeScale, planeScale, planeScale]), 1, 0, 0];
+    tetra = [gl.tetraVao, gl.TRIANGLE_STRIP, 6, null, mat4.scale(mat4.create(), mat4.create(), [tetraScale, tetraScale, tetraScale]), 1, 0, 0];
 }
 
 /**
@@ -363,11 +362,10 @@ function initEvents() {
 
 function restart() {
     score = 0;
-    objects = [];
+    cubes = [];
     envDx = 0;
     upRotation = 0;
     dUp = 0;
-    initObjects();
     playing = true;
 }
 
@@ -419,34 +417,24 @@ function render(ms) {
     }    
 
     updateViewMatrix(upRotation);
-    gl.uniform1i(gl.program.uTexture, 0);
 
-    for (let [vao, type, count, texture, mv, scale, dz, dx] of objects) {
-        gl.bindVertexArray(vao);
-        if (texture) {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.uniform1i(gl.program.uTextured, 1);
-        } else {
-            gl.uniform1i(gl.program.uTextured, 0);
-        }
-        // only for moving objects
-        if (dz !== 0) {
-            mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
-            mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
-            // check if mv makes the cube collide with tetrahedron
-            checkCollision(mv);
-        }
-        gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
-        gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        gl.bindVertexArray(null);
+    drawObject(plane);
+
+    for (let cube of cubes) {
+        let [mv, scale, dz, dx] = cube.slice(4);
+        mat4.translate(mv, mv, [envDx * elapsed / scale, 0, 0]);
+        mat4.translate(mv, mv, [dx * elapsed / scale, 0, dz * elapsed / scale]);
+        // check if mv makes the cube collide with tetrahedron
+        checkCollision(mv);
+        drawObject(cube);
     }
+    drawObject(tetra);
 
     //remove objects that are outside of camera
-    for (let i = 0; i < objects.length; i++) {
-        let z = objects[i][4][14];
+    for (let i = 0; i < cubes.length; i++) {
+        let z = cubes[i][4][14];
         if (z < -0.3) {
-            objects.splice(i, 1);
+            cubes.splice(i, 1);
             i--;
         }
         
@@ -462,6 +450,21 @@ function render(ms) {
     window.requestAnimationFrame(render);
 
 
+}
+
+function drawObject(obj) {
+    let [vao, type, count, texture, mv] = obj;
+    gl.bindVertexArray(vao);
+    if (texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.uniform1i(gl.program.uTextured, 1);
+    } else {
+        gl.uniform1i(gl.program.uTextured, 0);
+    }
+    gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
+    gl.drawElements(type, count, gl.UNSIGNED_SHORT, 0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindVertexArray(null);
 }
 
 function checkCollision(mv) {
