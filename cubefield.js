@@ -29,6 +29,7 @@ let objects = [];
 
 let planeScale = 100;
 let tetraScale = 0.05;
+let cubeScale = 0.04;
 
 // allocate matrices globally
 let projectionMatrix = mat4.create();
@@ -212,7 +213,6 @@ function initProgram() {
 }
 
 
-// this is very messy right now, needs some cleanup
 function initBuffers() {
     // create buffers for cube/tetrahedron data
     // create buffer for horizon
@@ -267,10 +267,10 @@ function initBuffers() {
 
     // The vertices, colors, and indices for a tetrahedron
     let tetraCoords = [
-        0, 0, 1,
-        0, Math.sqrt(8/9), -1/3,
-        Math.sqrt(2/3), -Math.sqrt(2/9), -1/3,
-        -Math.sqrt(2/3), -Math.sqrt(2/9), -1/3,
+        0, 4/3, Math.sqrt(2/9),
+        0, 0, Math.sqrt(8/9) + Math.sqrt(2/9),
+        Math.sqrt(2/3), 0, 0,
+        -Math.sqrt(2/3), 0, 0
     ];
     let tetraIndices = [1, 3, 0, 2, 1, 3];
     let tetraColors = [
@@ -324,9 +324,10 @@ function initTextures() {
 }
 
 function generateObject(x, z) {
-    let mv = mat4.scale(mat4.create(), mat4.create(), [.04, .04, .04]);
+    let mv = mat4.scale(mat4.create(), mat4.create(), [cubeScale, cubeScale, cubeScale]);
     mat4.translate(mv, mv, [x, 1, z]);
     //allows for flexibility if we make levels with moving cubes
+    // (Math.random() - 0.5) * 1 / 100
     objects.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, 0]);
 
 }
@@ -354,6 +355,15 @@ function initEvents() {
     window.addEventListener('resize', onWindowResize);
     window.addEventListener('keydown', onKeyDown);
 
+    document.getElementById('restart').addEventListener('click', restart);
+
+}
+
+function restart() {
+    score = 0;
+    objects = [];
+    initObjects();
+    playing = true;
 }
 
 let last_redraw;
@@ -370,6 +380,10 @@ function render(ms) {
     if (!ms) { ms = last_redraw = performance.now(); }
     elapsed = ms - last_redraw;
     last_redraw = ms;
+    
+    if (!playing) {
+        elapsed = 0;
+    }
     
     last_object += elapsed
     if(last_object > 250) {
@@ -416,14 +430,14 @@ function render(ms) {
         
     }
     
-    score += 1;
+    if (playing) {
+        score += 1;
+    }
     document.getElementById('score').innerHTML = "Score: " + score;
     highScore = Math.max(score, highScore);
-    document.getElementById('highscore').innerHTML = "High Score: " + score;
+    document.getElementById('highscore').innerHTML = "High Score: " + highScore;
 
-    if (playing) {
-        window.requestAnimationFrame(render);
-    }
+    window.requestAnimationFrame(render);
 
 
 }
