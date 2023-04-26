@@ -4,8 +4,7 @@
 
 
 // TODO:
-// Speed increase over time
-// score varying with difficulty
+// improvements?
 
 // Global WebGL context variable
 let gl;
@@ -44,7 +43,9 @@ let minLeft = -0.1;
 
 // increments based on how long we've been playing
 let score = 0;
+let runTime = 0;
 let highScore = 0;
+let dScore = 1;
 
 // selected from HTML
 let difficultyMultiplier = 0;
@@ -334,7 +335,7 @@ function generateNewCubes() {
     for (let i = 0; i < 100; i++) {
         let x = i * 2 - 99;
         if (Math.random() < 0.07) {
-            generateObject(x, 100)
+            generateObject(x, -10000 * speed)
         }
     }
 }
@@ -366,6 +367,8 @@ function restart() {
     envDx = 0;
     upRotation = 0;
     dUp = 0;
+    runTime = 0;
+    speed = -1 / 100;
     playing = true;
 }
 
@@ -374,12 +377,16 @@ function changeDifficulty() {
 
     if (difficulty === "Easy") {
         difficultyMultiplier = 0;
+        dScore = 1;
     } else if (difficulty === "Medium") {
         difficultyMultiplier = 1 / 500;
+        dScore = 1.5;
     } else if (difficulty === "Hard") {
         difficultyMultiplier = 1 / 250;
+        dScore = 2;
     } else if (difficulty === "Impossible") {
         difficultyMultiplier = 1 / 100;
+        dScore = 3;
     }
 
     restart();
@@ -405,8 +412,9 @@ function render(ms) {
     }
     
     last_object += elapsed
-    if(last_object > 250) {
-        last_object -= 250
+    let delay = -2.5 / speed
+    if(last_object > delay) {
+        last_object -= delay
         generateNewCubes();
     } 
 
@@ -441,11 +449,16 @@ function render(ms) {
     }
     
     if (playing) {
-        score += 1;
+        score += dScore;
+        runTime += 1;
     }
-    document.getElementById('score').innerHTML = "Score: " + score;
+    document.getElementById('score').innerHTML = "Score: " + Math.round(score);
     highScore = Math.max(score, highScore);
-    document.getElementById('highscore').innerHTML = "High Score: " + highScore;
+    document.getElementById('highscore').innerHTML = "High Score: " + Math.round(highScore);
+    if (runTime % 100 === 0) {
+        dScore *= 1.025;
+        speed *= 1.01;
+    }
 
     window.requestAnimationFrame(render);
 
@@ -553,12 +566,14 @@ function onKeyDown(e) {
         // move right
         envDx = -1 / 150;
         maxRight = 0.1;
+        minLeft = 0;
         dUp = 0.01
     } else if (e.keyCode === 39 && playing) {
         e.preventDefault();
         // move left
         envDx = 1 / 150;
         minLeft = -0.1;
+        maxRight = 0;
         dUp = -0.01;
     }
 
@@ -570,11 +585,13 @@ function onKeyUp(e) {
         e.preventDefault();
         envDx = 0;
         maxRight = 0;
+        minLeft = 0;
         dUp = -0.01;
     } else if (e.keyCode === 39 && playing) {
         e.preventDefault();
         envDx = 0;
         minLeft = 0;
+        maxRight = 0;
         dUp = 0.01;
     }
 
