@@ -74,7 +74,7 @@ window.addEventListener('load', function init() {
 
     // Configure WebGL
     gl.viewport(0, 0, canvas.width, canvas.height); // this is the region of the canvas we want to draw on (all of it)
-    gl.clearColor(1.0, 1.0, 1.0, 0.0); // setup the background color with red, green, blue, and alpha
+    gl.clearColor(0.6, 0.6, 1.0, 1.0); // setup the background color with red, green, blue, and alpha
 
     // Initialize the WebGL program and data
     gl.program = initProgram();
@@ -270,10 +270,10 @@ function initBuffers() {
     let tetraIndices = [1, 3, 0, 2, 1, 3];
     let tetraAlpha = 0.5;
     let tetraColors = [
-        0, 1, 0, tetraAlpha,// green
-        0, 1, 0, tetraAlpha,
-        0, 1, 0, tetraAlpha,
-        0, 1, 0, tetraAlpha
+        1, 0, 0, tetraAlpha,// green
+        1, 0, 0, tetraAlpha,
+        1, 0, 0, tetraAlpha,
+        1, 0, 0, tetraAlpha
     ];
 
     let tetraNormals = calc_normals(Float32Array.from(tetraCoords), tetraIndices, true);
@@ -292,10 +292,10 @@ function initBuffers() {
     ];
     let planeIndices = [3, 1, 2, 0];
     let planeColors = [
-        0.7, 0.7, 0.7, 1,
-        0.7, 0.7, 0.7, 1,
-        0.7, 0.7, 0.7, 1,
-        0.7, 0.7, 0.7, 1
+        0.4, 1, 0.4, 1,
+        0.4, 1, 0.4, 1,
+        0.4, 1, 0.4, 1,
+        0.4, 1, 0.4, 1
     ];
     let planeNormals = calc_normals(Float32Array.from(planeCoords), planeIndices, true);
 
@@ -324,7 +324,7 @@ function generateObject(x, z) {
     mat4.translate(mv, mv, [x, 1, z]);
 
     // need to draw these first for translucency, so add them at the beginning of array
-    cubes.unshift([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, (Math.random() - 0.5) * difficultyMultiplier]);
+    cubes.push([gl.cubeVao, gl.TRIANGLES, 36, gl.cubeTexture, mv, .1, speed, (Math.random() - 0.5) * difficultyMultiplier]);
 
 }
 function generateNewCubes() {
