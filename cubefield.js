@@ -30,6 +30,7 @@ let projectionMatrix = mat4.create();
 
 let envDx = 0;
 let speed = -1 / 100;
+const MAX_SPEED = -1 / 10;
 
 let eye = vec3.fromValues(0, 0.25, -0.75);
 let horizon = vec3.fromValues(0, 0.25, 100);
@@ -44,7 +45,13 @@ let minLeft = -0.1;
 // increments based on how long we've been playing
 let score = 0;
 let runTime = 0;
-let highScore = 0;
+let highScores = {
+    "Easy": 0,
+    "Medium": 0,
+    "Hard": 0,
+    "Impossible": 0,
+    "Luck": 0
+};
 let dScore = 1;
 
 // difficulty
@@ -373,16 +380,16 @@ function restart() {
     speed = -1 / 100;
     playing = true;
     // needed here to reset dScore
-    setDifficulty(difficulty);
+    setDifficulty();
 }
 
 function changeDifficulty() {
     difficulty = document.getElementById('difficulty').value;
-    setDifficulty(difficulty);
+    setDifficulty();
     restart();
 }
 
-function setDifficulty(difficulty) {
+function setDifficulty() {
     if (difficulty === "Easy") {
         difficultyMultiplier = 0;
         dScore = 1;
@@ -396,7 +403,7 @@ function setDifficulty(difficulty) {
         difficultyMultiplier = 1 / 100;
         dScore = 3;
     } else if (difficulty === "Luck") {
-        difficultyMultiplier = 1 / 40;
+        difficultyMultiplier = 1 / 50;
         dScore = 5;
     }
 }
@@ -461,11 +468,12 @@ function render(ms) {
         runTime += 1;
     }
     document.getElementById('score').innerHTML = "Score: " + Math.round(score);
-    highScore = Math.max(score, highScore);
-    document.getElementById('highscore').innerHTML = "High Score: " + Math.round(highScore);
+    highScores[difficulty] = Math.max(score, highScores[difficulty]);
+    document.getElementById('hs' + difficulty).innerHTML = "High Score (" + difficulty +"): " + Math.round(highScores[difficulty]);
     if (runTime % 100 === 0) {
         dScore *= 1.025;
-        speed *= 1.01;
+        // max becuase they're negative
+        speed = Math.max(speed * 1.01, MAX_SPEED);
     }
 
     window.requestAnimationFrame(render);
@@ -489,44 +497,46 @@ function drawObject(obj) {
 }
 
 function checkCollision(mv) {
+    // helps with collision detection at high speeds
+    let collisionOffset = -1 * speed * 0.05;
     let centerX = mv[12];
     let centerZ = mv[14];
 
-    let tetraPointZ = Math.sqrt(2) * tetraScale;
-    let tetraRightX = Math.sqrt(2/3) * tetraScale;
-    let tetraLeftX = -Math.sqrt(2/3) * tetraScale;
+    let tetraPointZ = Math.sqrt(2) * tetraScale + collisionOffset;
+    let tetraRightX = Math.sqrt(2/3) * tetraScale + collisionOffset;
+    let tetraLeftX = -Math.sqrt(2/3) * tetraScale - collisionOffset;
 
-    let baseZ = centerZ - cubeScale;
-    let backZ = centerZ + cubeScale;
-    let leftX = centerX - cubeScale;
-    let rightX = centerX + cubeScale;
+    let baseZ = centerZ - cubeScale - collisionOffset;
+    let backZ = centerZ + cubeScale + collisionOffset;
+    let leftX = centerX - cubeScale - collisionOffset;
+    let rightX = centerX + cubeScale + collisionOffset;
     // check if front line of cube intersects tetrahedron
     let x0 = (baseZ - tetraPointZ) / Math.sqrt(3);
-    if (x0 >= tetraLeftX && x0 <= 0 && x0 >= leftX && x0 <= rightX) {
+    if (x0 >= tetraLeftX && x0 <= collisionOffset && x0 >= leftX && x0 <= rightX) {
         playing = false;
     }
     let x1 = (baseZ - tetraPointZ) / -Math.sqrt(3);
-    if (x1 <= tetraRightX && x1 >= 0 && x1 >= leftX && x1 <= rightX) {
+    if (x1 <= tetraRightX && x1 >= -1 * collisionOffset && x1 >= leftX && x1 <= rightX) {
         playing = false;
     }
 
     // check if left line of cube intersects tetrahedron
     let z0 = leftX * Math.sqrt(3) + tetraScale * Math.sqrt(2);
-    if (z0 >= 0 && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
+    if (z0 >= -1 * collisionOffset && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
         playing = false;
     }
     let z1 = leftX * -Math.sqrt(3) + tetraScale * Math.sqrt(2);
-    if (z1 >= 0 && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
+    if (z1 >= -1 * collisionOffset && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
         playing = false;
     }
 
     // check if right line of cube intersects tetrahedron
     z0 = rightX * Math.sqrt(3) + tetraScale * Math.sqrt(2);
-    if (z0 >= 0 && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
+    if (z0 >= -1 * collisionOffset && z0 <= tetraPointZ && z0 >= baseZ && z0 <= backZ) {
         playing = false;
     }
     z1 = rightX * -Math.sqrt(3) + tetraScale * Math.sqrt(2);
-    if (z1 >= 0 && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
+    if (z1 >= -1 * collisionOffset && z1 <= tetraPointZ && z1 >= baseZ && z1 <= backZ) {
         playing = false;
     }
     
@@ -583,6 +593,8 @@ function onKeyDown(e) {
         minLeft = -0.1;
         maxRight = 0;
         dUp = -0.01;
+    } else if (e.keyCode === 82) {
+        restart();
     }
 
 }
