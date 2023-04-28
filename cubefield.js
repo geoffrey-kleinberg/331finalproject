@@ -117,7 +117,6 @@ function initProgram() {
         in vec4 aPosition;
         in vec3 aNormal;
         in vec4 aColor;
-        in vec2 aTextureCoord;
 
         vec4 lightPosition = vec4(0.0, 10.0, 0.0, 0.0);
 
@@ -125,7 +124,7 @@ function initProgram() {
         out vec3 vLightVector;
         out vec3 vEyeVector;
         flat out vec4 vColor;
-        out vec2 vTextureCoord;
+        out vec3 vTextureCoord;
         
         void main() {
 
@@ -141,7 +140,7 @@ function initProgram() {
 
             gl_Position = uProjectionMatrix * P;
             vColor = aColor;
-            vTextureCoord = aTextureCoord;
+            vTextureCoord = aPosition.xyz;
         }`
     );
     let frag_shader = compileShader(gl, gl.FRAGMENT_SHADER,
@@ -163,8 +162,8 @@ function initProgram() {
         in vec3 vEyeVector;
 
         uniform bool uTextured;
-        uniform sampler2D uTexture;
-        in vec2 vTextureCoord;
+        uniform samplerCube uTexture;
+        in vec3 vTextureCoord;
 
         // Output color of the fragment
         out vec4 fragColor;
@@ -208,7 +207,6 @@ function initProgram() {
     program.aPosition = gl.getAttribLocation(program, 'aPosition');
     program.aColor = gl.getAttribLocation(program, 'aColor');
     program.aNormal = gl.getAttribLocation(program, 'aNormal');
-    program.aTextureCoord = gl.getAttribLocation(program, 'aTextureCoord');
 
     // Get the uniform indices
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
@@ -254,23 +252,12 @@ function initBuffers() {
         0, 0, 0, 1,
         0, 0, 0, 1
     ];
-    let cube_tex_coords = [
-        0, 0, // A
-        1, 0, // B
-        1, 1, // C
-        0, 1, // D
-        0, 0, // E
-        1, 0, // F
-        1, 1, // G
-        0, 1, // H
-    ];
     let cubeNormals = calc_normals(Float32Array.from(cubeCoords), cubeIndices, false);
 
     gl.cubeVao = createVao(gl, [
         [gl.program.aPosition, cubeCoords, 3],
         [gl.program.aColor, cubeColors, 4],
-        [gl.program.aNormal, cubeNormals, 3],
-        [gl.program.aTextureCoord, cube_tex_coords, 2]
+        [gl.program.aNormal, cubeNormals, 3]
     ], cubeIndices);
 
     // The vertices, colors, and indices for a tetrahedron
@@ -325,7 +312,7 @@ function initTextures() {
     let image = new Image();
     image.src = 'brickwall.png';
     image.addEventListener('load', () => {
-        gl.cubeTexture = loadTexture(gl, image, 0);
+        gl.cubeTexture = loadCubemapTexture(gl, image, image, image, image, image, image, 0);
         render();
 
     })
@@ -485,7 +472,7 @@ function drawObject(obj) {
     let [vao, type, count, texture, mv] = obj;
     gl.bindVertexArray(vao);
     if (texture) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
         gl.uniform1i(gl.program.uTextured, 1);
     } else {
         gl.uniform1i(gl.program.uTextured, 0);
